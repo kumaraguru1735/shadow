@@ -82,30 +82,73 @@ Always provide:
 Be direct and technical. Focus on actionable insights.`
 }
 
-// AnalyzeScanWithRetry performs AI analysis with automatic retry logic (openclaw pattern)
-func (a *AdvancedClaudeAnalyzer) AnalyzeScanWithRetry(ctx context.Context, result *models.ScanResult) (*models.AIAnalysis, error) {
-	// Create timeout context
-	ctx, cancel := context.WithTimeout(ctx, defaultAnalysisTimeout)
-	defer cancel()
+// ProgressCallback is called during analysis to report progress
+type ProgressCallback func(message string)
 
-	// Retry with exponential backoff
-	return a.retryWithBackoff(ctx, func(ctx context.Context) (*models.AIAnalysis, error) {
-		return a.analyzeScanOnce(ctx, result)
-	})
+// AnalyzeScanWithRetry performs AI analysis with automatic retry logic (openclaw pattern)
+func (a *AdvancedClaudeAnalyzer) AnalyzeScanWithRetry(ctx context.Context, result *models.ScanResult, progress ProgressCallback) (*models.AIAnalysis, error) {
+	// Retry with exponential backoff (timeout is per-attempt, not total)
+	return a.retryWithBackoff(ctx, func(attemptCtx context.Context) (*models.AIAnalysis, error) {
+		// Create fresh timeout context for each attempt
+		timeoutCtx, cancel := context.WithTimeout(attemptCtx, defaultAnalysisTimeout)
+		defer cancel()
+		return a.analyzeScanOnce(timeoutCtx, result, progress)
+	}, progress)
 }
 
 // analyzeScanOnce performs a single analysis attempt
-func (a *AdvancedClaudeAnalyzer) analyzeScanOnce(ctx context.Context, result *models.ScanResult) (*models.AIAnalysis, error) {
+func (a *AdvancedClaudeAnalyzer) analyzeScanOnce(ctx context.Context, result *models.ScanResult, progress ProgressCallback) (*models.AIAnalysis, error) {
+	if progress != nil {
+		progress("🔍 Building analysis prompt...")
+	}
+
 	prompt := a.buildAnalysisPrompt(result)
 
+	if progress != nil {
+		progress("🧠 Sending to Claude AI (with extended thinking)...")
+		progress("⏳ This may take several minutes for thorough analysis...")
+	}
+
+	// Start time tracking
+	startTime := time.Now()
+
+	// Launch a goroutine to show periodic progress
+	done := make(chan bool)
+	if progress != nil {
+		go func() {
+			ticker := time.NewTicker(15 * time.Second)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-done:
+					return
+				case <-ticker.C:
+					elapsed := time.Since(startTime)
+					progress(fmt.Sprintf("⏱️  Still analyzing... (%.0f seconds elapsed)", elapsed.Seconds()))
+				}
+			}
+		}()
+	}
+
 	runResult, err := a.client.Run(ctx, prompt)
+	close(done)
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to run analysis: %w", err)
+	}
+
+	if progress != nil {
+		progress("✅ Received response, parsing results...")
 	}
 
 	text := runResult.Text
 	if strings.TrimSpace(text) == "" {
 		return nil, errEmptyResponse
+	}
+
+	if progress != nil {
+		progress("📊 Extracting findings and recommendations...")
 	}
 
 	analysis := &models.AIAnalysis{
@@ -121,7 +164,7 @@ func (a *AdvancedClaudeAnalyzer) analyzeScanOnce(ctx context.Context, result *mo
 }
 
 // retryWithBackoff implements openclaw's retry pattern
-func (a *AdvancedClaudeAnalyzer) retryWithBackoff(ctx context.Context, fn func(context.Context) (*models.AIAnalysis, error)) (*models.AIAnalysis, error) {
+func (a *AdvancedClaudeAnalyzer) retryWithBackoff(ctx context.Context, fn func(context.Context) (*models.AIAnalysis, error), progress ProgressCallback) (*models.AIAnalysis, error) {
 	var lastErr error
 
 	for attempt := 0; attempt < maxRetryAttempts; attempt++ {
@@ -130,6 +173,10 @@ func (a *AdvancedClaudeAnalyzer) retryWithBackoff(ctx context.Context, fn func(c
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		default:
+		}
+
+		if attempt > 0 && progress != nil {
+			progress(fmt.Sprintf("🔄 Attempt %d/%d starting...", attempt+1, maxRetryAttempts))
 		}
 
 		result, err := fn(ctx)

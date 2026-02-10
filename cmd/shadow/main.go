@@ -205,10 +205,12 @@ func runScan(cmd *cobra.Command, args []string) {
 		// Use parent context (analyzer creates its own timeout internally)
 		ctx := context.Background()
 
-		// Show progress indicator
-		fmt.Println("⏳ Analyzing scan results (this may take a few minutes)...")
+		// Progress callback for real-time updates
+		progressCallback := func(msg string) {
+			fmt.Printf("   %s\n", msg)
+		}
 
-		analysis, err := analyzer.AnalyzeScanWithRetry(ctx, result)
+		analysis, err := analyzer.AnalyzeScanWithRetry(ctx, result, progressCallback)
 		if err != nil {
 			fmt.Printf("❌ AI analysis failed: %v\n", err)
 			fmt.Println("\n💡 This could be due to:")
