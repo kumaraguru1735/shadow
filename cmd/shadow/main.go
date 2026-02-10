@@ -147,9 +147,16 @@ func init() {
 		Run:   runAuthBackup,
 	}
 
+	// Agents command
+	var agentsCmd = &cobra.Command{
+		Use:   "agents",
+		Short: "List available AI agents and their configurations",
+		Run:   runAgents,
+	}
+
 	// Add commands to root
 	rootCmd.AddCommand(scanCmd, subdomainCmd, portscanCmd, sslCmd, analyzeCmd, reportCmd, queryCmd,
-		authCheckCmd, authGenCmd, authStatusCmd, authSetupCmd, authRefreshCmd, authBackupCmd)
+		authCheckCmd, authGenCmd, authStatusCmd, authSetupCmd, authRefreshCmd, authBackupCmd, agentsCmd)
 }
 
 func runScan(cmd *cobra.Command, args []string) {
@@ -191,18 +198,19 @@ func runScan(cmd *cobra.Command, args []string) {
 	fmt.Printf("🔍 Findings: %d\n", len(result.Findings))
 
 	if aiAnalysis {
-		fmt.Println("\n🤖 Running AI analysis with advanced retry logic...")
+		fmt.Println("\n🤖 Running Multi-Agent AI Analysis...")
+		fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-		// Use advanced analyzer with retry and better timeout handling
-		analyzer, err := ai.NewAdvancedClaudeAnalyzer()
+		// Initialize multi-agent manager
+		manager, err := ai.NewAgentManager()
 		if err != nil {
 			fmt.Printf("⚠️  AI analysis unavailable: %v\n", err)
 			fmt.Println("💡 Tip: Run 'shadow auth-check' to verify authentication")
 			return
 		}
-		defer analyzer.Close()
+		defer manager.Close()
 
-		// Use parent context (analyzer creates its own timeout internally)
+		// Use parent context
 		ctx := context.Background()
 
 		// Progress callback for real-time updates
@@ -210,16 +218,24 @@ func runScan(cmd *cobra.Command, args []string) {
 			fmt.Printf("   %s\n", msg)
 		}
 
-		analysis, err := analyzer.AnalyzeScanWithRetry(ctx, result, progressCallback)
+		// Run multi-agent analysis based on profile
+		analysis, err := manager.AnalyzeScanWithAgents(ctx, result, profile, progressCallback)
 		if err != nil {
 			fmt.Printf("❌ AI analysis failed: %v\n", err)
 			fmt.Println("\n💡 This could be due to:")
 			fmt.Println("   - Large scan results (try with --profile quick)")
 			fmt.Println("   - Network issues (check connection)")
 			fmt.Println("   - Rate limiting (wait a few minutes)")
+
+			// Still show usage stats even on failure
+			summary := manager.GetUsageSummary()
+			if summary.TotalOperations > 0 {
+				summary.PrintSummary()
+			}
 			return
 		}
 
+		// Display analysis results
 		fmt.Printf("\n📊 AI Analysis Results:\n")
 		fmt.Printf("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
 		fmt.Printf("\n📝 Summary:\n%s\n", analysis.Summary)
@@ -242,6 +258,10 @@ func runScan(cmd *cobra.Command, args []string) {
 		}
 
 		fmt.Printf("\n✅ Analysis completed at %s\n", analysis.Timestamp.Format("15:04:05"))
+
+		// Show model usage summary
+		summary := manager.GetUsageSummary()
+		summary.PrintSummary()
 	}
 }
 
@@ -644,4 +664,49 @@ func runAuthBackup(cmd *cobra.Command, args []string) {
 	fmt.Println()
 	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	fmt.Println("✅ Backup complete!")
+}
+
+func runAgents(cmd *cobra.Command, args []string) {
+	fmt.Println("🤖 Shadow AI Agents Configuration")
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+	agents := models.GetDefaultAgents()
+
+	for i, agent := range agents {
+		fmt.Printf("\n%d. %s\n", i+1, agent.Name)
+		fmt.Printf("   Type: %s\n", agent.Type)
+		fmt.Printf("   Model: %s\n", getModelDisplayName(agent.Model))
+		fmt.Printf("   Thinking Mode: %s\n", agent.Thinking)
+		fmt.Printf("   Description: %s\n", agent.Description)
+		fmt.Printf("   Use Case: %s\n", agent.UseCase)
+	}
+
+	fmt.Println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Println("\n📋 Scan Profiles:")
+	fmt.Println("   • quick  - Uses Haiku 4.5 (fast, cost-effective)")
+	fmt.Println("   • standard - Uses Sonnet 4.5 (balanced, recommended)")
+	fmt.Println("   • deep   - Uses multiple agents (Sonnet + Opus, most thorough)")
+
+	fmt.Println("\n💰 Model Pricing (per million tokens):")
+	fmt.Println("   • Haiku 4.5:  $0.80 input, $4.00 output")
+	fmt.Println("   • Sonnet 4.5: $3.00 input, $15.00 output")
+	fmt.Println("   • Opus 4.6:   $15.00 input, $75.00 output")
+
+	fmt.Println("\n💡 Usage:")
+	fmt.Println("   shadow scan example.com --ai-analysis --profile quick")
+	fmt.Println("   shadow scan example.com --ai-analysis --profile standard")
+	fmt.Println("   shadow scan example.com --ai-analysis --profile deep")
+}
+
+func getModelDisplayName(model string) string {
+	switch model {
+	case "claude-opus-4.6":
+		return "Claude Opus 4.6 (most capable)"
+	case "claude-sonnet-4.5", "claude-sonnet-4.5-20250929":
+		return "Claude Sonnet 4.5 (balanced)"
+	case "claude-haiku-4.5":
+		return "Claude Haiku 4.5 (fast & efficient)"
+	default:
+		return model
+	}
 }
