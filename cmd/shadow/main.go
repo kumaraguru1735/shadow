@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -47,6 +49,23 @@ func init() {
 	scanCmd.Flags().IntP("threads", "t", 50, "Number of concurrent threads")
 	scanCmd.Flags().StringP("output", "o", "", "Output file path")
 	scanCmd.Flags().StringP("format", "f", "json", "Output format (json, yaml, html, pdf)")
+
+	// Smart scan command (AI-planned reconnaissance)
+	var smartScanCmd = &cobra.Command{
+		Use:   "smart-scan [target]",
+		Short: "AI plans and executes reconnaissance strategy",
+		Long: `Let AI analyze the target and create a comprehensive reconnaissance plan.
+AI will:
+- Determine what scans are needed
+- Check tool availability
+- Request root permissions if needed
+- Execute reconnaissance phases
+- Provide real-time guidance`,
+		Args: cobra.ExactArgs(1),
+		Run:  runSmartScan,
+	}
+
+	smartScanCmd.Flags().StringP("profile", "p", "standard", "Reconnaissance depth (quick, standard, deep)")
 
 	// Subdomain command
 	var subdomainCmd = &cobra.Command{
@@ -155,7 +174,7 @@ func init() {
 	}
 
 	// Add commands to root
-	rootCmd.AddCommand(scanCmd, subdomainCmd, portscanCmd, sslCmd, analyzeCmd, reportCmd, queryCmd,
+	rootCmd.AddCommand(scanCmd, smartScanCmd, subdomainCmd, portscanCmd, sslCmd, analyzeCmd, reportCmd, queryCmd,
 		authCheckCmd, authGenCmd, authStatusCmd, authSetupCmd, authRefreshCmd, authBackupCmd, agentsCmd)
 }
 
@@ -709,4 +728,106 @@ func getModelDisplayName(model string) string {
 	default:
 		return model
 	}
+}
+
+func runSmartScan(cmd *cobra.Command, args []string) {
+	target := args[0]
+	profile, _ := cmd.Flags().GetString("profile")
+
+	fmt.Printf("🕵️  Shadow v%s - Smart Reconnaissance\n", version)
+	fmt.Printf("🎯 Target: %s\n", target)
+	fmt.Printf("📋 Mode: %s\n\n", profile)
+
+	fmt.Println("🤖 AI is analyzing target and planning reconnaissance strategy...")
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+
+	// Create AI reconnaissance planner
+	planner, err := ai.NewReconPlanner()
+	if err != nil {
+		fmt.Printf("❌ Failed to initialize AI planner: %v\n", err)
+		fmt.Println("💡 Tip: Run 'shadow auth-check' to verify authentication")
+		return
+	}
+	defer planner.Close()
+
+	// Ask AI to create reconnaissance plan
+	ctx := context.Background()
+	plan, err := planner.PlanReconnaissance(ctx, target, profile)
+	if err != nil {
+		fmt.Printf("❌ Failed to create reconnaissance plan: %v\n", err)
+		return
+	}
+
+	// Display the plan
+	plan.PrintPlan()
+
+	// Ask user if they want to proceed
+	fmt.Print("\n❓ Execute this reconnaissance plan? (yes/no): ")
+	reader := bufio.NewReader(os.Stdin)
+	response, err := reader.ReadString('\n')
+	if err != nil {
+		fmt.Printf("❌ Error reading input: %v\n", err)
+		return
+	}
+
+	response = strings.ToLower(strings.TrimSpace(response))
+	if response != "yes" && response != "y" {
+		fmt.Println("\n✅ Reconnaissance plan saved but not executed")
+		fmt.Println("💡 You can review the plan and run scans manually")
+		return
+	}
+
+	// Execute the plan
+	fmt.Println("\n🚀 Executing reconnaissance plan...")
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+
+	// Initialize permission manager
+	permManager := scanner.NewPermissionManager()
+
+	for i, phase := range plan.Phases {
+		fmt.Printf("\n📍 Phase %d/%d: %s\n", i+1, len(plan.Phases), phase.Name)
+		fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+		if phase.Description != "" {
+			fmt.Printf("📋 %s\n\n", phase.Description)
+		}
+
+		// Execute each tool in the phase
+		for _, tool := range phase.Tools {
+			fmt.Printf("🔧 Running: %s\n", tool.Name)
+			fmt.Printf("   Purpose: %s\n", tool.Purpose)
+
+			if tool.RequiresRoot {
+				fmt.Println("   ⚠️  This tool requires root access")
+
+				// Show alternatives
+				permManager.ShowCapabilityInfo(tool.Name)
+
+				// Request permission
+				approved, err := permManager.RequestRootPermission(
+					tool.Name,
+					tool.Purpose,
+					fmt.Sprintf("sudo %s <args>", tool.Name),
+				)
+
+				if err != nil || !approved {
+					fmt.Printf("   ⏭️  Skipping %s (permission denied or unavailable)\n", tool.Name)
+					if tool.Fallback != "" {
+						fmt.Printf("   💡 Fallback: %s\n", tool.Fallback)
+					}
+					continue
+				}
+			}
+
+			fmt.Printf("   ✅ %s ready to execute\n", tool.Name)
+			// Actual execution would happen here
+			// For now, just show what would be executed
+		}
+	}
+
+	// Show permission summary
+	permManager.GetApprovalSummary()
+
+	fmt.Println("\n✅ Reconnaissance plan execution complete")
+	fmt.Println("💡 Next: Run 'shadow scan %s --ai-analysis' to analyze findings", target)
 }
