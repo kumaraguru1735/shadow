@@ -1,0 +1,113 @@
+# Shadow Security Scanner - Git Ignore File
+
+# ============================================================================
+# SENSITIVE FILES - NEVER COMMIT THESE
+# ============================================================================
+
+# OAuth Tokens & Credentials
+*.credentials.json
+oauth.json
+.credentials.json
+**/oauth.json
+**/.credentials.json
+
+# API Keys & Secrets
+*.key
+*.pem
+*.p12
+*.pfx
+.env
+.env.*
+!.env.example
+secrets.yaml
+secrets.yml
+config.yaml
+!config.example.yaml
+
+# Authentication & Tokens
+auth.json
+token.json
+session.json
+
+# ============================================================================
+# BUILD ARTIFACTS
+# ============================================================================
+
+# Compiled binaries
+/shadow
+/shadow-*
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# ============================================================================
+# SCAN RESULTS & REPORTS
+# ============================================================================
+
+# Scan outputs
+scan_results/
+audit-logs/
+reports/
+deliverables/
+
+# ============================================================================
+# LOGS & DEBUG
+# ============================================================================
+
+# Log files
+*.log
+logs/
+audit.log
+
+# ============================================================================
+# DATABASE FILES
+# ============================================================================
+
+# SQLite databases
+*.db
+*.sqlite
+*.sqlite3
+
+# ============================================================================
+# TEMPORARY FILES
+# ============================================================================
+
+# OS-specific
+.DS_Store
+Thumbs.db
+*~
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary directories
+tmp/
+temp/
+
+# ============================================================================
+# GO SPECIFIC
+# ============================================================================
+
+# Vendor directory
+vendor/
+
+# Go workspace
+go.work
+
+# Coverage
+coverage.txt
+*.cover
+
+# ============================================================================
+# USER-SPECIFIC CONFIG
+# ============================================================================
+
+# User config (keep example)
+.shadow/
+

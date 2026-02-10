@@ -1,0 +1,167 @@
+package ai
+
+import (
+	"context"
+	"fmt"
+	"os"
+
+	"github.com/anthropics/anthropic-sdk-go"
+	"github.com/yourusername/shadow/pkg/models"
+)
+
+// ClaudeAnalyzer provides AI-powered security analysis using Claude
+type ClaudeAnalyzer struct {
+	client *anthropic.Client
+	model  string
+}
+
+// NewClaudeAnalyzer creates a new Claude analyzer instance
+func NewClaudeAnalyzer() (*ClaudeAnalyzer, error) {
+	apiKey := os.Getenv("ANTHROPIC_API_KEY")
+	if apiKey == "" {
+		return nil, fmt.Errorf("ANTHROPIC_API_KEY environment variable not set")
+	}
+
+	client := anthropic.NewClient(
+		anthropic.WithAPIKey(apiKey),
+	)
+
+	return &ClaudeAnalyzer{
+		client: client,
+		model:  "claude-sonnet-4.5-20250929",
+	}, nil
+}
+
+// AnalyzeScan performs AI analysis on scan results
+func (a *ClaudeAnalyzer) AnalyzeScan(ctx context.Context, result *models.ScanResult) (*models.AIAnalysis, error) {
+	prompt := a.buildAnalysisPrompt(result)
+
+	resp, err := a.client.Messages.New(ctx, anthropic.MessageNewParams{
+		Model:     anthropic.F(a.model),
+		MaxTokens: anthropic.Int(4096),
+		Messages: anthropic.F([]anthropic.MessageParam{
+			anthropic.NewUserMessage(anthropic.NewTextBlock(prompt)),
+		}),
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("Claude API error: %w", err)
+	}
+
+	// Parse response and build AIAnalysis
+	analysis := &models.AIAnalysis{
+		ScanID: result.ID,
+		// Parse Claude's response into structured analysis
+		// Implementation coming
+	}
+
+	return analysis, nil
+}
+
+// buildAnalysisPrompt constructs the analysis prompt for Claude
+func (a *ClaudeAnalyzer) buildAnalysisPrompt(result *models.ScanResult) string {
+	prompt := fmt.Sprintf(`You are a senior security analyst reviewing scan results for %s.
+
+Scan completed at: %s
+Total findings: %d
+
+Please analyze these security findings and provide:
+1. Executive summary (2-3 sentences)
+2. Critical issues that need immediate attention
+3. Prioritized recommendations with implementation steps
+4. Potential attack chains combining multiple vulnerabilities
+5. Risk score (0-100)
+
+Format your response as structured JSON for parsing.
+
+Findings:
+`, result.Target, result.EndTime, len(result.Findings))
+
+	for _, finding := range result.Findings {
+		prompt += fmt.Sprintf("\n- [%s] %s: %s", finding.Severity, finding.Title, finding.Description)
+	}
+
+	return prompt
+}
+
+// QueryResults allows natural language queries about scan results
+func (a *ClaudeAnalyzer) QueryResults(ctx context.Context, scanID string, question string) (string, error) {
+	// Load scan results from database
+	// Build prompt with scan context + question
+	// Query Claude
+	// Return natural language answer
+
+	return "Query implementation coming soon", nil
+}
+
+// GenerateRemediation generates specific remediation steps
+func (a *ClaudeAnalyzer) GenerateRemediation(ctx context.Context, finding *models.Finding) ([]string, error) {
+	prompt := fmt.Sprintf(`Generate specific, actionable remediation steps for this security finding:
+
+Type: %s
+Severity: %s
+Title: %s
+Description: %s
+
+Provide:
+1. Root cause analysis
+2. Step-by-step remediation instructions
+3. Code examples if applicable
+4. Verification steps
+5. Prevention measures
+
+Be specific and technical.`, finding.Type, finding.Severity, finding.Title, finding.Description)
+
+	resp, err := a.client.Messages.New(ctx, anthropic.MessageNewParams{
+		Model:     anthropic.F(a.model),
+		MaxTokens: anthropic.Int(2048),
+		Messages: anthropic.F([]anthropic.MessageParam{
+			anthropic.NewUserMessage(anthropic.NewTextBlock(prompt)),
+		}),
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("Claude API error: %w", err)
+	}
+
+	// Parse response into steps
+	// Implementation coming
+
+	return []string{"Step 1", "Step 2"}, nil
+}
+
+// CompareScans compares two scans and identifies changes
+func (a *ClaudeAnalyzer) CompareScans(ctx context.Context, baseline, current *models.ScanResult) (string, error) {
+	prompt := fmt.Sprintf(`Compare these two security scans and identify:
+1. New vulnerabilities introduced
+2. Fixed vulnerabilities
+3. Security posture improvement or degradation
+4. Recommendations based on trends
+
+Baseline scan (%s):
+%d findings
+
+Current scan (%s):
+%d findings
+
+Provide a concise comparison analysis.`,
+		baseline.EndTime, len(baseline.Findings),
+		current.EndTime, len(current.Findings))
+
+	resp, err := a.client.Messages.New(ctx, anthropic.MessageNewParams{
+		Model:     anthropic.F(a.model),
+		MaxTokens: anthropic.Int(2048),
+		Messages: anthropic.F([]anthropic.MessageParam{
+			anthropic.NewUserMessage(anthropic.NewTextBlock(prompt)),
+		}),
+	})
+
+	if err != nil {
+		return "", fmt.Errorf("Claude API error: %w", err)
+	}
+
+	// Extract text from response
+	// Implementation coming
+
+	return "Comparison analysis", nil
+}

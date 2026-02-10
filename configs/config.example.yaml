@@ -1,0 +1,153 @@
+# Shadow Configuration Example
+# Copy to ~/.shadow/config.yaml and customize
+
+# Anthropic Claude AI Settings
+anthropic:
+  api_key: ${ANTHROPIC_API_KEY}  # Use environment variable
+  model: claude-sonnet-4.5-20250929
+  max_tokens: 4096
+  timeout: 60s
+
+# Scanning Configuration
+scanning:
+  threads: 50
+  timeout: 30s
+  rate_limit: 100  # requests per second
+  user_agent: "Shadow/0.1.0 Security Scanner"
+  retry_attempts: 3
+  retry_delay: 5s
+
+# Module Configuration
+modules:
+  enabled:
+    - subdomain
+    - port_scan
+    - web_analysis
+    - ssl_check
+    - header_check
+    - technology_detection
+
+  # Subdomain Discovery
+  subdomain:
+    methods:
+      - dns_bruteforce
+      - certificate_transparency
+      - search_engines
+    wordlist: /usr/share/wordlists/subdomains.txt
+    timeout: 300s
+
+  # Port Scanning
+  port_scan:
+    default_ports: "1-1000"
+    fast_scan_ports: "21,22,23,25,53,80,110,111,135,139,143,443,445,993,995,1723,3306,3389,5900,8080"
+    scan_type: syn  # syn, connect, udp
+    service_detection: true
+
+  # Web Analysis
+  web_analysis:
+    crawl_depth: 3
+    max_pages: 1000
+    javascript_enabled: true
+    screenshot: false
+    follow_redirects: true
+
+  # SSL/TLS Analysis
+  ssl_check:
+    check_certificate_chain: true
+    check_expiry: true
+    check_vulnerabilities: true
+    check_ciphers: true
+
+# AI Analysis Configuration
+ai:
+  enabled: true
+  auto_analyze: false  # Automatically analyze after scan
+  context_window: 8192
+  temperature: 0.3  # Lower for more focused analysis
+  features:
+    - risk_prioritization
+    - attack_chain_detection
+    - remediation_guidance
+    - natural_language_reporting
+
+# Database Configuration
+database:
+  type: sqlite  # sqlite, postgres, mysql
+  path: ~/.shadow/shadow.db
+  # For postgres/mysql:
+  # host: localhost
+  # port: 5432
+  # user: shadow
+  # password: ${DB_PASSWORD}
+  # database: shadow
+
+# Reporting Configuration
+reporting:
+  default_format: html
+  output_directory: ./reports
+  include_screenshots: false
+  include_raw_data: false
+  templates:
+    executive: templates/executive.html
+    technical: templates/technical.html
+
+# Notification Configuration
+notifications:
+  enabled: false
+  slack:
+    webhook_url: ${SLACK_WEBHOOK}
+    channel: "#security"
+  email:
+    smtp_server: smtp.example.com
+    smtp_port: 587
+    from: shadow@example.com
+    to:
+      - security@example.com
+
+# CI/CD Integration
+cicd:
+  fail_on_severity: high  # critical, high, medium, low
+  output_format: json
+  quiet_mode: false
+
+# Security Settings
+security:
+  permission_check: true  # Require authorization confirmation
+  audit_logging: true
+  log_path: ~/.shadow/audit.log
+  respect_robots_txt: true
+  respect_security_txt: true
+
+# Performance Settings
+performance:
+  max_memory: 1GB
+  max_cpu_percent: 80
+  connection_pool_size: 100
+  dns_resolver: system  # system, cloudflare, google
+
+# Proxy Configuration
+proxy:
+  enabled: false
+  http: http://proxy.example.com:8080
+  https: https://proxy.example.com:8080
+  socks5: socks5://proxy.example.com:1080
+  no_proxy:
+    - localhost
+    - 127.0.0.1
+
+# Rate Limiting (Respectful Scanning)
+rate_limiting:
+  enabled: true
+  requests_per_second: 10
+  burst: 20
+  delay_between_requests: 100ms
+
+# Scope Configuration
+scope:
+  in_scope:
+    - "*.example.com"
+    - "10.0.0.0/8"
+  out_of_scope:
+    - "admin.example.com"
+    - "prod.example.com"
+  require_confirmation: true
