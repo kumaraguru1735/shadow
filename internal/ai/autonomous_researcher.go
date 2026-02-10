@@ -197,6 +197,10 @@ func (asr *AutonomousSecurityResearcher) initialAnalysis(
 ) (*ResearchIteration, error) {
 	if progress != nil {
 		progress("🤔 AI is thinking about what these findings might indicate...")
+		progress("")
+		progress("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+		progress("📋 TRANSPARENCY: What AI is Being Asked")
+		progress("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	}
 
 	prompt := fmt.Sprintf(`# Initial Security Analysis
@@ -253,15 +257,64 @@ Think like an attacker. What would YOU target? What looks suspicious?
 ### NEXT STEPS
 [Concrete actions to take]`, target, formatFindingsDetailed(findings))
 
+	// Show full transparency about what AI is being asked
+	logAIActivity(progress, "Sending prompt to Claude Opus 4.6", map[string]string{
+		"🔧 Tool":        "Claude API (Anthropic)",
+		"🎯 Model":       "claude-opus-4.6",
+		"🧠 Thinking":    "HIGH (extended reasoning enabled)",
+		"⏱️  Timeout":    "10 minutes",
+		"📊 Input size":  fmt.Sprintf("%d characters", len(prompt)),
+		"🔒 Security":    "Read-only analysis, no code execution",
+		"📍 Endpoint":    "api.anthropic.com",
+	})
+
+	if progress != nil {
+		progress("📤 PROMPT PREVIEW (First/Last Lines):")
+		progress("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+		progress(showPromptPreview(prompt))
+		progress("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+		progress("")
+		progress("⏳ WAITING FOR AI RESPONSE...")
+		progress("   The AI is now:")
+		progress("   • Reading and understanding the findings")
+		progress("   • Thinking critically about security implications")
+		progress("   • Generating hypotheses about vulnerabilities")
+		progress("   • Planning investigation strategies")
+		progress("")
+		progress("   This typically takes 3-8 minutes with extended thinking.")
+		progress("")
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
 
+	if progress != nil {
+		progress("🔄 API Call in Progress...")
+		progress(fmt.Sprintf("   Started: %s", time.Now().Format("15:04:05")))
+	}
+
 	result, err := asr.client.Run(ctx, prompt)
+
+	if progress != nil {
+		progress(fmt.Sprintf("   Completed: %s", time.Now().Format("15:04:05")))
+		progress("")
+	}
+
 	if err != nil {
+		if progress != nil {
+			progress(fmt.Sprintf("❌ API call failed: %v", err))
+		}
 		return nil, err
 	}
 
 	if progress != nil {
+		progress("✅ AI Response Received")
+		progress(fmt.Sprintf("📊 Response size: %d characters", len(result.Text)))
+		progress("")
+		progress("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+		progress("🧠 AI'S ANALYSIS")
+		progress("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+		progress("")
 		progress("✅ Initial analysis complete")
 		progress("")
 		progress("📋 AI's Critical Thinking:")
@@ -290,6 +343,18 @@ func (asr *AutonomousSecurityResearcher) backdoorDetection(
 ) (*ResearchIteration, error) {
 	if progress != nil {
 		progress("🚪 AI is hunting for backdoors and hidden threats...")
+		progress("")
+	}
+
+	logAIActivity(progress, "Backdoor Detection Analysis", map[string]string{
+		"🎯 Focus":      "Hidden backdoors, malicious code, debug endpoints",
+		"🔍 Method":     "Pattern recognition, anomaly detection",
+		"🧠 AI Model":   "Claude Opus 4.6",
+		"⚠️  Warning":   "AI analyzes only - does NOT execute any code",
+	})
+
+	if progress != nil {
+		progress("")
 	}
 
 	prompt := fmt.Sprintf(`# Backdoor & Hidden Threat Detection
@@ -743,4 +808,40 @@ func (asr *AutonomousSecurityResearcher) Close() {
 	if asr.client != nil {
 		asr.client.Close()
 	}
+}
+
+// showPromptPreview shows first and last parts of prompt for transparency
+func showPromptPreview(prompt string) string {
+	lines := strings.Split(prompt, "\n")
+	if len(lines) <= 20 {
+		return prompt
+	}
+
+	// Show first 10 lines
+	preview := strings.Join(lines[:10], "\n")
+	preview += "\n\n... [Full prompt: " + fmt.Sprintf("%d", len(lines)) + " lines] ...\n\n"
+	// Show last 5 lines
+	preview += strings.Join(lines[len(lines)-5:], "\n")
+
+	return preview
+}
+
+// logAIActivity logs what the AI is doing for transparency
+func logAIActivity(progress ProgressCallback, activity string, details map[string]string) {
+	if progress == nil {
+		return
+	}
+
+	progress("")
+	progress("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	progress("🔍 AI ACTIVITY LOG")
+	progress("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	progress(fmt.Sprintf("📋 Action: %s", activity))
+
+	for key, value := range details {
+		progress(fmt.Sprintf("   %s: %s", key, value))
+	}
+
+	progress("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	progress("")
 }
