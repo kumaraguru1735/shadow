@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/kumaraguru1735/shadow/internal/ai"
@@ -108,8 +109,47 @@ func init() {
 		Run:   runAuthCheck,
 	}
 
+	// Auth generate command
+	var authGenCmd = &cobra.Command{
+		Use:   "auth-gen",
+		Short: "Generate and setup authentication",
+		Run:   runAuthGen,
+	}
+
+	// Auth status command
+	var authStatusCmd = &cobra.Command{
+		Use:   "auth-status",
+		Short: "Show detailed authentication status",
+		Run:   runAuthStatus,
+	}
+
+	// Auth setup command
+	var authSetupCmd = &cobra.Command{
+		Use:   "auth-setup",
+		Short: "Interactive authentication setup wizard",
+		Run:   runAuthSetup,
+	}
+
+	authSetupCmd.Flags().String("api-key", "", "Set API key directly")
+	authSetupCmd.Flags().Bool("oauth", false, "Extract OAuth from Claude Code")
+
+	// Auth refresh command
+	var authRefreshCmd = &cobra.Command{
+		Use:   "auth-refresh",
+		Short: "Refresh OAuth credentials",
+		Run:   runAuthRefresh,
+	}
+
+	// Auth backup command
+	var authBackupCmd = &cobra.Command{
+		Use:   "auth-backup",
+		Short: "Backup current credentials",
+		Run:   runAuthBackup,
+	}
+
 	// Add commands to root
-	rootCmd.AddCommand(scanCmd, subdomainCmd, portscanCmd, sslCmd, analyzeCmd, reportCmd, queryCmd, authCheckCmd)
+	rootCmd.AddCommand(scanCmd, subdomainCmd, portscanCmd, sslCmd, analyzeCmd, reportCmd, queryCmd,
+		authCheckCmd, authGenCmd, authStatusCmd, authSetupCmd, authRefreshCmd, authBackupCmd)
 }
 
 func runScan(cmd *cobra.Command, args []string) {
@@ -289,4 +329,317 @@ func runAuthCheck(cmd *cobra.Command, args []string) {
 
 	fmt.Println("✅ AI client initialized successfully!")
 	fmt.Println("✅ Shadow can use Claude AI for analysis")
+}
+
+func runAuthGen(cmd *cobra.Command, args []string) {
+	fmt.Println("🔐 Shadow Authentication Generator")
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Println()
+
+	manager, err := ai.NewAuthManager()
+	if err != nil {
+		fmt.Printf("❌ Failed to initialize auth manager: %v\n", err)
+		return
+	}
+
+	// Extract OAuth from Claude Code
+	fmt.Println("📝 Extracting OAuth from Claude Code credentials...")
+	if err := manager.ExtractOAuthToStandard(); err != nil {
+		fmt.Printf("⚠️  OAuth extraction failed: %v\n", err)
+		fmt.Println()
+		fmt.Println("💡 Tip: Make sure Claude Code is installed and authenticated")
+	} else {
+		fmt.Println("✅ OAuth credentials extracted successfully!")
+		fmt.Println("   Location: ~/.claude/oauth.json")
+	}
+
+	fmt.Println()
+
+	// Generate config if needed
+	fmt.Println("📝 Generating Shadow configuration...")
+	if err := manager.GenerateAPIKeyConfig(); err != nil {
+		if os.IsExist(err) || fmt.Sprint(err) != "" && (fmt.Sprint(err)[:6] == "config") {
+			fmt.Println("ℹ️  Config already exists at ~/.shadow/config.yaml")
+		} else {
+			fmt.Printf("⚠️  Config generation failed: %v\n", err)
+		}
+	} else {
+		fmt.Println("✅ Configuration generated at ~/.shadow/config.yaml")
+	}
+
+	fmt.Println()
+
+	// Validate authentication
+	fmt.Println("🧪 Validating authentication...")
+	if err := manager.ValidateAuthentication(); err != nil {
+		fmt.Printf("❌ Validation failed: %v\n", err)
+		fmt.Println()
+		fmt.Println("💡 Solutions:")
+		fmt.Println("   - Set ANTHROPIC_API_KEY environment variable")
+		fmt.Println("   - Or run: shadow auth-setup --oauth")
+	} else {
+		fmt.Println("✅ Authentication is working!")
+	}
+
+	fmt.Println()
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Println("✅ Authentication setup complete!")
+}
+
+func runAuthStatus(cmd *cobra.Command, args []string) {
+	fmt.Println("🔐 Detailed Authentication Status")
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Println()
+
+	manager, err := ai.NewAuthManager()
+	if err != nil {
+		fmt.Printf("❌ Failed to initialize auth manager: %v\n", err)
+		return
+	}
+
+	status, err := manager.GetAuthStatus()
+	if err != nil {
+		fmt.Printf("❌ Failed to get auth status: %v\n", err)
+		return
+	}
+
+	// OAuth Status
+	fmt.Println("📋 OAuth Authentication:")
+	if status.HasOAuth {
+		fmt.Printf("   ✅ Enabled\n")
+		fmt.Printf("   📍 Location: %s\n", status.OAuthPath)
+		
+		if status.OAuthExpired {
+			fmt.Printf("   ⚠️  Status: EXPIRED\n")
+			fmt.Println("   💡 Run: shadow auth-refresh")
+		} else {
+			fmt.Printf("   ✅ Status: Active\n")
+			fmt.Printf("   ⏰ Expires in: %v\n", status.ExpiresIn.Round(time.Hour))
+		}
+		
+		if status.Subscription != "" {
+			fmt.Printf("   📦 Subscription: %s\n", status.Subscription)
+		}
+		if status.RateLimitTier != "" {
+			fmt.Printf("   🚀 Rate Tier: %s\n", status.RateLimitTier)
+		}
+		if len(status.Scopes) > 0 {
+			fmt.Printf("   🔑 Scopes: %v\n", status.Scopes)
+		}
+	} else {
+		fmt.Println("   ❌ Not configured")
+		fmt.Println("   💡 Run: shadow auth-gen")
+	}
+
+	fmt.Println()
+
+	// API Key Status
+	fmt.Println("📋 API Key Authentication:")
+	if status.HasAPIKey {
+		fmt.Println("   ✅ Configured")
+		fmt.Println("   📍 Via: ANTHROPIC_API_KEY environment variable")
+	} else {
+		fmt.Println("   ❌ Not configured")
+		fmt.Println("   💡 Set: export ANTHROPIC_API_KEY='sk-ant-...'")
+	}
+
+	fmt.Println()
+
+	// Overall Status
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	if status.HasOAuth && !status.OAuthExpired {
+		fmt.Println("✅ Authentication: READY (OAuth)")
+	} else if status.HasAPIKey {
+		fmt.Println("✅ Authentication: READY (API Key)")
+	} else {
+		fmt.Println("❌ Authentication: NOT CONFIGURED")
+		fmt.Println()
+		fmt.Println("💡 Quick Setup:")
+		fmt.Println("   shadow auth-gen")
+	}
+}
+
+func runAuthSetup(cmd *cobra.Command, args []string) {
+	fmt.Println("🔧 Shadow Authentication Setup Wizard")
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Println()
+
+	manager, err := ai.NewAuthManager()
+	if err != nil {
+		fmt.Printf("❌ Failed to initialize auth manager: %v\n", err)
+		return
+	}
+
+	// Check flags
+	apiKey, _ := cmd.Flags().GetString("api-key")
+	useOAuth, _ := cmd.Flags().GetBool("oauth")
+
+	if apiKey != "" {
+		// Setup API key
+		fmt.Println("📝 Setting up API key authentication...")
+		if err := manager.SetupAPIKey(apiKey); err != nil {
+			fmt.Printf("❌ Failed to setup API key: %v\n", err)
+			return
+		}
+		fmt.Println("✅ API key saved to ~/.shadow/.env")
+		fmt.Println()
+		fmt.Println("💡 To use it:")
+		fmt.Println("   source ~/.shadow/.env")
+		fmt.Println("   shadow scan example.com --ai-analysis")
+		return
+	}
+
+	if useOAuth {
+		// Setup OAuth
+		fmt.Println("📝 Setting up OAuth authentication...")
+		if err := manager.ExtractOAuthToStandard(); err != nil {
+			fmt.Printf("❌ Failed to setup OAuth: %v\n", err)
+			return
+		}
+		fmt.Println("✅ OAuth credentials extracted!")
+		
+		// Validate
+		fmt.Println()
+		fmt.Println("🧪 Validating...")
+		if err := manager.ValidateAuthentication(); err != nil {
+			fmt.Printf("⚠️  Validation failed: %v\n", err)
+		} else {
+			fmt.Println("✅ Authentication working!")
+		}
+		return
+	}
+
+	// Interactive mode
+	fmt.Println("Choose authentication method:")
+	fmt.Println()
+	fmt.Println("  1. OAuth (Claude Code) - Recommended")
+	fmt.Println("     • Automatic token management")
+	fmt.Println("     • Uses your Claude Code subscription")
+	fmt.Println()
+	fmt.Println("  2. API Key (Manual)")
+	fmt.Println("     • Direct API key")
+	fmt.Println("     • Manual token management")
+	fmt.Println()
+	fmt.Print("Enter choice (1 or 2): ")
+
+	var choice string
+	fmt.Scanln(&choice)
+	fmt.Println()
+
+	switch choice {
+	case "1":
+		fmt.Println("📝 Extracting OAuth from Claude Code...")
+		if err := manager.ExtractOAuthToStandard(); err != nil {
+			fmt.Printf("❌ Failed: %v\n", err)
+			fmt.Println()
+			fmt.Println("💡 Make sure Claude Code is installed and authenticated")
+			return
+		}
+		fmt.Println("✅ OAuth setup complete!")
+
+	case "2":
+		fmt.Println("📝 API Key Setup")
+		fmt.Println()
+		fmt.Print("Enter your Anthropic API key: ")
+		var key string
+		fmt.Scanln(&key)
+		
+		if key == "" {
+			fmt.Println("❌ No API key provided")
+			return
+		}
+
+		if err := manager.SetupAPIKey(key); err != nil {
+			fmt.Printf("❌ Failed: %v\n", err)
+			return
+		}
+		fmt.Println()
+		fmt.Println("✅ API key saved to ~/.shadow/.env")
+		fmt.Println()
+		fmt.Println("💡 To use it:")
+		fmt.Println("   source ~/.shadow/.env")
+
+	default:
+		fmt.Println("❌ Invalid choice")
+		return
+	}
+
+	// Validate
+	fmt.Println()
+	fmt.Println("🧪 Validating authentication...")
+	if err := manager.ValidateAuthentication(); err != nil {
+		fmt.Printf("⚠️  Validation failed: %v\n", err)
+	} else {
+		fmt.Println("✅ Authentication is working!")
+	}
+
+	fmt.Println()
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Println("✅ Setup complete! You can now use Shadow.")
+}
+
+func runAuthRefresh(cmd *cobra.Command, args []string) {
+	fmt.Println("🔄 Refreshing OAuth Credentials")
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Println()
+
+	manager, err := ai.NewAuthManager()
+	if err != nil {
+		fmt.Printf("❌ Failed to initialize auth manager: %v\n", err)
+		return
+	}
+
+	fmt.Println("📝 Attempting to refresh OAuth tokens...")
+	if err := manager.RefreshOAuth(); err != nil {
+		fmt.Printf("⚠️  Automatic refresh failed: %v\n", err)
+		fmt.Println()
+		fmt.Println("💡 Manual refresh:")
+		fmt.Println("   1. Open Claude Code")
+		fmt.Println("   2. Re-authenticate if needed")
+		fmt.Println("   3. Run: shadow auth-gen")
+		return
+	}
+
+	fmt.Println("✅ OAuth tokens refreshed!")
+	fmt.Println()
+
+	// Re-extract to standard location
+	fmt.Println("📝 Updating local OAuth file...")
+	if err := manager.ExtractOAuthToStandard(); err != nil {
+		fmt.Printf("⚠️  Update failed: %v\n", err)
+	} else {
+		fmt.Println("✅ Local OAuth file updated!")
+	}
+
+	fmt.Println()
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Println("✅ Refresh complete!")
+}
+
+func runAuthBackup(cmd *cobra.Command, args []string) {
+	fmt.Println("💾 Backing Up Credentials")
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Println()
+
+	manager, err := ai.NewAuthManager()
+	if err != nil {
+		fmt.Printf("❌ Failed to initialize auth manager: %v\n", err)
+		return
+	}
+
+	fmt.Println("📝 Creating backup...")
+	backupPath, err := manager.BackupCredentials()
+	if err != nil {
+		fmt.Printf("❌ Backup failed: %v\n", err)
+		return
+	}
+
+	fmt.Println("✅ Backup created successfully!")
+	fmt.Printf("📍 Location: %s\n", backupPath)
+	fmt.Println()
+	fmt.Println("💡 To restore:")
+	fmt.Println("   cp", backupPath, "~/.claude/.credentials.json")
+	fmt.Println()
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Println("✅ Backup complete!")
 }
