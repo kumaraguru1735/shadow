@@ -173,9 +173,23 @@ AI will:
 		Run:   runAgents,
 	}
 
+	// Autonomous research command
+	var researchCmd = &cobra.Command{
+		Use:   "research [target]",
+		Short: "AI autonomously researches security (Opus 4.6 with extended thinking)",
+		Long: `Autonomous AI security researcher conducts iterative deep analysis:
+- Thinks critically about findings
+- Hunts for backdoors and hidden threats
+- Maps complete attack chains
+- Conducts deep dive investigations
+- Uses Claude Opus 4.6 with maximum thinking depth`,
+		Args: cobra.ExactArgs(1),
+		Run:  runAutonomousResearch,
+	}
+
 	// Add commands to root
 	rootCmd.AddCommand(scanCmd, smartScanCmd, subdomainCmd, portscanCmd, sslCmd, analyzeCmd, reportCmd, queryCmd,
-		authCheckCmd, authGenCmd, authStatusCmd, authSetupCmd, authRefreshCmd, authBackupCmd, agentsCmd)
+		authCheckCmd, authGenCmd, authStatusCmd, authSetupCmd, authRefreshCmd, authBackupCmd, agentsCmd, researchCmd)
 }
 
 func runScan(cmd *cobra.Command, args []string) {
@@ -830,4 +844,99 @@ func runSmartScan(cmd *cobra.Command, args []string) {
 
 	fmt.Println("\n✅ Reconnaissance plan execution complete")
 	fmt.Println("💡 Next: Run 'shadow scan %s --ai-analysis' to analyze findings", target)
+}
+
+func runAutonomousResearch(cmd *cobra.Command, args []string) {
+	target := args[0]
+
+	fmt.Printf("🕵️  Shadow v%s - Autonomous Security Research\n", version)
+	fmt.Printf("🎯 Target: %s\n\n", target)
+
+	fmt.Println("🧠 Initializing Autonomous AI Security Researcher")
+	fmt.Println("   Model: Claude Opus 4.6 (most capable, extended thinking)")
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+
+	// First, run a basic scan to get initial findings
+	fmt.Println("🔍 Step 1: Running initial security scan...")
+
+	result := &models.ScanResult{
+		ID:        fmt.Sprintf("scan-%d", time.Now().Unix()),
+		Target:    target,
+		StartTime: time.Now(),
+		Status:    "scanning",
+		Findings:  make([]models.Finding, 0),
+	}
+
+	// Run scanner (simplified for autonomous research)
+	config := models.ScanConfig{
+		Target:  target,
+		Profile: "standard",
+		Threads: 50,
+	}
+
+	sc := scanner.New(config)
+	scanResult, err := sc.Run()
+	if err != nil {
+		fmt.Printf("⚠️  Scan error: %v\n", err)
+	}
+
+	if scanResult != nil {
+		result.Findings = scanResult.Findings
+	}
+
+	result.EndTime = time.Now()
+	result.Duration = result.EndTime.Sub(result.StartTime)
+	result.Status = "completed"
+
+	fmt.Printf("✅ Initial scan complete: %d findings\n\n", len(result.Findings))
+
+	// Initialize autonomous researcher
+	fmt.Println("🤖 Step 2: Launching Autonomous AI Researcher...")
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+
+	researcher, err := ai.NewAutonomousSecurityResearcher()
+	if err != nil {
+		fmt.Printf("❌ Failed to initialize autonomous researcher: %v\n", err)
+		fmt.Println("💡 Tip: Run 'shadow auth-check' to verify authentication")
+		return
+	}
+	defer researcher.Close()
+
+	// Progress callback
+	progressCallback := func(msg string) {
+		fmt.Println(msg)
+	}
+
+	// Conduct autonomous research
+	ctx := context.Background()
+	report, err := researcher.ConductAutonomousResearch(ctx, target, result.Findings, progressCallback)
+	if err != nil {
+		fmt.Printf("\n❌ Autonomous research failed: %v\n", err)
+		return
+	}
+
+	// Display report
+	fmt.Println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Println("📊 Autonomous Research Complete")
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Printf("\n⏱️  Total Duration: %v\n", report.TotalDuration.Round(time.Second))
+	fmt.Printf("🔬 Iterations: %d\n", len(report.Iterations))
+	fmt.Printf("🎯 Model Used: Claude Opus 4.6\n")
+
+	fmt.Println("\n📋 Research Phases:")
+	for _, iteration := range report.Iterations {
+		fmt.Printf("   %d. %s (%s)\n", 
+			iteration.Number, 
+			iteration.Phase,
+			iteration.Timestamp.Format("15:04:05"))
+	}
+
+	fmt.Println("\n💡 AI conducted deep analysis including:")
+	fmt.Println("   ✓ Critical thinking about findings")
+	fmt.Println("   ✓ Backdoor and hidden threat detection")
+	fmt.Println("   ✓ Attack path mapping")
+	fmt.Println("   ✓ Deep dive investigations")
+	
+	fmt.Println("\n📄 Full report saved to ./autonomous-research-report.txt")
+	fmt.Printf("✅ Autonomous research complete for %s\n", target)
 }
