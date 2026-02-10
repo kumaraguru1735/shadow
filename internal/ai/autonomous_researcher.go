@@ -288,12 +288,37 @@ Think like an attacker. What would YOU target? What looks suspicious?
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
 
+	startTime := time.Now()
+	var done chan bool
+
 	if progress != nil {
 		progress("🔄 API Call in Progress...")
-		progress(fmt.Sprintf("   Started: %s", time.Now().Format("15:04:05")))
+		progress(fmt.Sprintf("   Started: %s", startTime.Format("15:04:05")))
+		progress("")
+
+		// Launch progress ticker
+		done = make(chan bool)
+		go func() {
+			ticker := time.NewTicker(30 * time.Second)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-done:
+					return
+				case <-ticker.C:
+					elapsed := time.Since(startTime)
+					progress(fmt.Sprintf("   ⏱️  Still working... %.0f seconds elapsed (Opus thinking deeply...)", elapsed.Seconds()))
+				}
+			}
+		}()
 	}
 
 	result, err := asr.client.Run(ctx, prompt)
+
+	if done != nil {
+		close(done)
+	}
 
 	if progress != nil {
 		progress(fmt.Sprintf("   Completed: %s", time.Now().Format("15:04:05")))
