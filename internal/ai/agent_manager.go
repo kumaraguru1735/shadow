@@ -146,12 +146,22 @@ func (m *AgentManager) AnalyzeWithAgent(
 
 	startTime := time.Now()
 
-	// Show progress updates
+	// Show detailed progress updates
 	done := make(chan bool)
 	if progress != nil {
 		go func() {
 			ticker := time.NewTicker(15 * time.Second)
 			defer ticker.Stop()
+
+			stages := []string{
+				"🔍 Analyzing security findings",
+				"📊 Evaluating risk levels",
+				"🎯 Identifying attack vectors",
+				"🔗 Mapping attack chains",
+				"📝 Generating recommendations",
+				"✅ Finalizing analysis",
+			}
+			stageIdx := 0
 
 			for {
 				select {
@@ -159,8 +169,13 @@ func (m *AgentManager) AnalyzeWithAgent(
 					return
 				case <-ticker.C:
 					elapsed := time.Since(startTime)
-					progress(fmt.Sprintf("⏱️  %s analyzing... (%.0fs elapsed)",
-						agent.config.Name, elapsed.Seconds()))
+					if stageIdx < len(stages) {
+						progress(fmt.Sprintf("   %s (%.0fs)", stages[stageIdx], elapsed.Seconds()))
+						stageIdx++
+					} else {
+						progress(fmt.Sprintf("   ⏱️  %s completing analysis... (%.0fs elapsed)",
+							agent.config.Name, elapsed.Seconds()))
+					}
 				}
 			}
 		}()
@@ -255,6 +270,24 @@ func (m *AgentManager) runStandardAnalysis(
 	result *models.ScanResult,
 	progress ProgressCallback,
 ) (*models.AIAnalysis, error) {
+	if progress != nil {
+		progress(fmt.Sprintf("📋 Preparing analysis of %d findings from %s",
+			len(result.Findings), result.Target))
+
+		// Show what we're analyzing
+		if len(result.Findings) > 0 {
+			for i, finding := range result.Findings {
+				if i < 3 { // Show first 3 findings
+					progress(fmt.Sprintf("   • [%s] %s", finding.Severity, finding.Title))
+				}
+			}
+			if len(result.Findings) > 3 {
+				progress(fmt.Sprintf("   • ... and %d more", len(result.Findings)-3))
+			}
+		}
+		progress("")
+	}
+
 	// Use vulnerability agent for standard analysis
 	prompt := buildAnalysisPrompt(result)
 
